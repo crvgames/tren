@@ -1,9 +1,9 @@
- <!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>tren kaçıcıları</title>
+    <title>3D Subway Runner - Tam Kontrollü</title>
     <style>
         body {
             margin: 0;
@@ -31,41 +31,72 @@
             color: #ffd700;
             font-size: 20px;
         }
-        #game-over {
+
+        /* --- ÜST SAĞ KONTROL BUTONLARI --- */
+        .top-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 12px;
+            z-index: 15;
+        }
+        .icon-btn {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            font-size: 22px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: 0.2s;
+        }
+        .icon-btn:hover {
+            transform: scale(1.1);
+        }
+
+        /* --- MODAL EKRANLARI (BAŞLANGIÇ, PAUSE, GAME OVER) --- */
+        .overlay-screen {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: #fff;
+            color: #2f3542;
             text-align: center;
-            font-size: 32px;
-            display: none;
             background: rgba(255, 255, 255, 0.95);
             padding: 40px 60px;
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            border: 3px solid #ff4757;
-            color: #2f3542;
+            border: 3px solid #3b82f6;
             z-index: 20;
         }
-        #game-over button {
-            margin-top: 25px;
-            padding: 15px 32px;
+        .overlay-screen h1 {
+            margin: 0 0 15px 0;
+            font-size: 36px;
+            color: #2563eb;
+        }
+        .overlay-screen button {
+            margin-top: 20px;
+            padding: 15px 35px;
             font-size: 20px;
             font-weight: bold;
             cursor: pointer;
-            background: linear-gradient(45deg, #ff4757, #ff6b81);
+            background: linear-gradient(45deg, #2563eb, #3b82f6);
             color: white;
             border: none;
             border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
             transition: 0.2s;
         }
-        #game-over button:hover {
+        .overlay-screen button:hover {
             transform: scale(1.05);
         }
 
-        /* --- EKRAN DOKUNMATİK TUŞLARI --- */
+        /* --- DOKUNMATİK YÖN TUŞLARI --- */
         .controls-container {
             position: absolute;
             bottom: 30px;
@@ -109,9 +140,6 @@
             border-color: rgba(255, 255, 255, 0.9);
             color: white;
         }
-        .btn-jump:active {
-            background: rgba(59, 130, 246, 0.9);
-        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -119,6 +147,33 @@
     <div id="ui">
         <div>Skor: <span id="score">0</span></div>
         <div class="high-score-text">🏆 Yüksek Skor: <span id="high-score">0</span></div>
+    </div>
+
+    <!-- SAĞ ÜST KONTROL BUTONLARI -->
+    <div class="top-controls">
+        <div class="icon-btn" id="btn-sound" onclick="toggleSound()">🔊</div>
+        <div class="icon-btn" id="btn-pause" onclick="togglePause()">⏸</div>
+    </div>
+
+    <!-- BAŞLANGIÇ EKRANI -->
+    <div id="start-screen" class="overlay-screen">
+        <h1>3D SUBWAY RUNNER</h1>
+        <p style="font-size: 18px; color: #64748b;">Koşmaya başlamak için hazır mısın?</p>
+        <button onclick="startGame()">OYUNU BAŞLAT</button>
+    </div>
+
+    <!-- DURAKLATMA EKRANI -->
+    <div id="pause-screen" class="overlay-screen" style="display: none; border-color: #f59e0b;">
+        <h1 style="color: #f59e0b;">OYUN DURAKLATILDI</h1>
+        <button onclick="togglePause()">DEVAM ET</button>
+    </div>
+
+    <!-- GAME OVER EKRANI -->
+    <div id="game-over" class="overlay-screen" style="display: none; border-color: #ff4757;">
+        <h1 style="color: #ff4757;">ÇARPIŞMA!</h1>
+        <div style="font-size: 20px; margin-top: 10px;">Skor: <span id="final-score">0</span></div>
+        <div style="font-size: 20px; margin-top: 5px; color: #eab308;">🏆 En Yüksek Skor: <span id="final-high-score">0</span></div>
+        <button onclick="resetGame()" style="background: linear-gradient(45deg, #ff4757, #ff6b81);">YENİDEN BAŞLA</button>
     </div>
 
     <!-- EKRAN DOKUNMATİK TUŞLARI -->
@@ -130,19 +185,13 @@
         <div class="touch-btn btn-jump" id="btn-jump">▲</div>
     </div>
 
-    <div id="game-over">
-        <div style="color: #ff4757; font-weight: bold;">ÇARPIŞMA!</div>
-        <div style="font-size: 20px; margin-top: 15px;">Skor: <span id="final-score">0</span></div>
-        <div style="font-size: 20px; margin-top: 5px; color: #eab308;">🏆 En Yüksek Skor: <span id="final-high-score">0</span></div>
-        <button onclick="resetGame()">YENİDEN BAŞLA</button>
-    </div>
-
     <script>
         // --- GELİŞMİŞ SES VE MÜZİK SİSTEMİ ---
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         let audioCtx;
         let bgMusicTimer = null;
         let musicNoteIndex = 0;
+        let isMuted = false;
 
         const happyMelody = [
             261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
@@ -158,10 +207,15 @@
             }
         }
 
+        function toggleSound() {
+            isMuted = !isMuted;
+            document.getElementById('btn-sound').innerText = isMuted ? '🔇' : '🔊';
+        }
+
         function startBgMusic() {
             if (bgMusicTimer) return;
             bgMusicTimer = setInterval(() => {
-                if (isGameOver || !audioCtx) return;
+                if (isGameOver || isPaused || isMuted || !gameStarted || !audioCtx) return;
                 const freq = happyMelody[musicNoteIndex];
                 if (freq > 0) {
                     playSynthNote(freq);
@@ -189,7 +243,7 @@
         }
 
         function playSound(type) {
-            if (!audioCtx) return;
+            if (!audioCtx || isMuted) return;
             const now = audioCtx.currentTime;
 
             if (type === 'jump') {
@@ -287,7 +341,7 @@
         dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
-        // --- DEĞİŞKENLER VE YÜKSEK SKOR KAYDI ---
+        // --- DEĞİŞKENLER VE DURUM KONTROLLERİ ---
         const LANES = [-3.5, 0, 3.5];
         let currentLane = 1;
         let targetX = LANES[currentLane];
@@ -301,6 +355,8 @@
         let highScore = localStorage.getItem('subway_runner_highscore') || 0;
         document.getElementById('high-score').innerText = highScore;
 
+        let gameStarted = false;
+        let isPaused = false;
         let isGameOver = false;
 
         let animTime = 0;
@@ -483,10 +539,24 @@
             createCoin(z - 15);
         }
 
+        // --- BUTON VE DURUM KONTROLLERİ ---
+        function startGame() {
+            initAudio();
+            gameStarted = true;
+            document.getElementById('start-screen').style.display = 'none';
+        }
+
+        function togglePause() {
+            if (!gameStarted || isGameOver) return;
+            isPaused = !isPaused;
+            document.getElementById('pause-screen').style.display = isPaused ? 'block' : 'none';
+            document.getElementById('btn-pause').innerText = isPaused ? '▶' : '⏸';
+        }
+
         // --- GİRDİLER ---
         function moveLeft() {
             initAudio();
-            if (isGameOver) return;
+            if (!gameStarted || isPaused || isGameOver) return;
             if (currentLane > 0) {
                 currentLane--;
                 targetX = LANES[currentLane];
@@ -495,7 +565,7 @@
 
         function moveRight() {
             initAudio();
-            if (isGameOver) return;
+            if (!gameStarted || isPaused || isGameOver) return;
             if (currentLane < 2) {
                 currentLane++;
                 targetX = LANES[currentLane];
@@ -504,7 +574,7 @@
 
         function jump() {
             initAudio();
-            if (isGameOver) return;
+            if (!gameStarted || isPaused || isGameOver) return;
             if (!isJumping) {
                 isJumping = true;
                 jumpVelocity = 0.38;
@@ -516,6 +586,7 @@
             if (e.key === 'ArrowLeft' || e.key === 'a') moveLeft();
             else if (e.key === 'ArrowRight' || e.key === 'd') moveRight();
             else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') jump();
+            else if (e.key === 'p' || e.key === 'P') togglePause();
         });
 
         const btnLeft = document.getElementById('btn-left');
@@ -533,8 +604,13 @@
 
         // --- OYUN DÖNGÜSÜ ---
         function animate() {
-            if (isGameOver) return;
             requestAnimationFrame(animate);
+
+            // Oyun başlamadıysa veya duraklatıldıysa çizimi dondur
+            if (!gameStarted || isPaused || isGameOver) {
+                renderer.render(scene, camera);
+                return;
+            }
 
             playerGroup.position.x += (targetX - playerGroup.position.x) * 0.25;
             gameSpeed += 0.00003;
@@ -648,7 +724,6 @@
                     score += 10;
                     document.getElementById('score').innerText = score;
 
-                    // Yüksek Skor Güncelleme
                     if (score > highScore) {
                         highScore = score;
                         localStorage.setItem('subway_runner_highscore', highScore);
@@ -675,6 +750,7 @@
 
         function resetGame() {
             isGameOver = false;
+            isPaused = false;
             score = 0;
             gameSpeed = 0.45;
             currentLane = 1;
@@ -686,6 +762,8 @@
             railSoundTimer = 0;
             document.getElementById('score').innerText = '0';
             document.getElementById('game-over').style.display = 'none';
+            document.getElementById('pause-screen').style.display = 'none';
+            document.getElementById('btn-pause').innerText = '⏸';
 
             obstacles.forEach(obs => scene.remove(obs));
             coins.forEach(coin => scene.remove(coin));
@@ -696,8 +774,6 @@
                 createTrain(z);
                 createCoin(z - 15);
             }
-
-            animate();
         }
 
         window.addEventListener('resize', () => {
