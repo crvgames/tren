@@ -1,0 +1,712 @@
+ <!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>tren kaçıcıları</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #70d6ff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            pointer-events: none;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        #ui .high-score-text {
+            color: #ffd700;
+            font-size: 20px;
+        }
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            text-align: center;
+            font-size: 32px;
+            display: none;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px 60px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 3px solid #ff4757;
+            color: #2f3542;
+            z-index: 20;
+        }
+        #game-over button {
+            margin-top: 25px;
+            padding: 15px 32px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            background: linear-gradient(45deg, #ff4757, #ff6b81);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
+            transition: 0.2s;
+        }
+        #game-over button:hover {
+            transform: scale(1.05);
+        }
+
+        /* --- EKRAN DOKUNMATİK TUŞLARI --- */
+        .controls-container {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+        .btn-group-left {
+            display: flex;
+            gap: 15px;
+        }
+        .touch-btn {
+            width: 75px;
+            height: 75px;
+            background: rgba(255, 255, 255, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            color: #2f3542;
+            font-size: 30px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+            touch-action: manipulation;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        .touch-btn:active {
+            background: rgba(255, 255, 255, 0.8);
+            transform: scale(0.95);
+        }
+        .btn-jump {
+            width: 85px;
+            height: 85px;
+            border-radius: 25px;
+            background: rgba(59, 130, 246, 0.6);
+            border-color: rgba(255, 255, 255, 0.9);
+            color: white;
+        }
+        .btn-jump:active {
+            background: rgba(59, 130, 246, 0.9);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="ui">
+        <div>Skor: <span id="score">0</span></div>
+        <div class="high-score-text">🏆 Yüksek Skor: <span id="high-score">0</span></div>
+    </div>
+
+    <!-- EKRAN DOKUNMATİK TUŞLARI -->
+    <div class="controls-container">
+        <div class="btn-group-left">
+            <div class="touch-btn" id="btn-left">◀</div>
+            <div class="touch-btn" id="btn-right">▶</div>
+        </div>
+        <div class="touch-btn btn-jump" id="btn-jump">▲</div>
+    </div>
+
+    <div id="game-over">
+        <div style="color: #ff4757; font-weight: bold;">ÇARPIŞMA!</div>
+        <div style="font-size: 20px; margin-top: 15px;">Skor: <span id="final-score">0</span></div>
+        <div style="font-size: 20px; margin-top: 5px; color: #eab308;">🏆 En Yüksek Skor: <span id="final-high-score">0</span></div>
+        <button onclick="resetGame()">YENİDEN BAŞLA</button>
+    </div>
+
+    <script>
+        // --- GELİŞMİŞ SES VE MÜZİK SİSTEMİ ---
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        let bgMusicTimer = null;
+        let musicNoteIndex = 0;
+
+        const happyMelody = [
+            261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
+            293.66, 349.23, 440.00, 587.33, 440.00, 349.23,
+            329.63, 392.00, 493.88, 659.25, 493.88, 392.00,
+            392.00, 440.00, 493.88, 523.25, 523.25, 0
+        ];
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioCtx();
+                startBgMusic();
+            }
+        }
+
+        function startBgMusic() {
+            if (bgMusicTimer) return;
+            bgMusicTimer = setInterval(() => {
+                if (isGameOver || !audioCtx) return;
+                const freq = happyMelody[musicNoteIndex];
+                if (freq > 0) {
+                    playSynthNote(freq);
+                }
+                musicNoteIndex = (musicNoteIndex + 1) % happyMelody.length;
+            }, 180);
+        }
+
+        function playSynthNote(freq) {
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now);
+
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start(now);
+            osc.stop(now + 0.15);
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+
+            if (type === 'jump') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(500, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'coin') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(900, now);
+                osc.frequency.setValueAtTime(1300, now + 0.08);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'crash') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'horn') {
+                const freqs = [311.13, 370.00];
+                freqs.forEach(freq => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(freq, now);
+                    osc.frequency.linearRampToValueAtTime(freq * 1.02, now + 0.4);
+                    osc.frequency.linearRampToValueAtTime(freq, now + 0.8);
+
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                    gain.gain.setValueAtTime(0.2, now + 0.6);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.9);
+                });
+            } else if (type === 'rail') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(90, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.04);
+
+                gain.gain.setValueAtTime(0.04, now);
+                gain.gain.linearRampToValueAtTime(0.001, now + 0.04);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.04);
+            }
+        }
+
+        // --- SAHNE KURULUMU ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x70d6ff);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // --- IŞIKLANDIRMA ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 1.1);
+        dirLight.position.set(30, 50, 20);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        // --- DEĞİŞKENLER VE YÜKSEK SKOR KAYDI ---
+        const LANES = [-3.5, 0, 3.5];
+        let currentLane = 1;
+        let targetX = LANES[currentLane];
+        let isJumping = false;
+        let jumpVelocity = 0;
+        const gravity = -0.016;
+
+        let groundY = 0;
+        let gameSpeed = 0.45;
+        let score = 0;
+        let highScore = localStorage.getItem('subway_runner_highscore') || 0;
+        document.getElementById('high-score').innerText = highScore;
+
+        let isGameOver = false;
+
+        let animTime = 0;
+        let railSoundTimer = 0;
+
+        const obstacles = [];
+        const coins = [];
+        const buildings = [];
+
+        // --- YOL & RAYLAR ---
+        const roadGeo = new THREE.PlaneGeometry(14, 400);
+        const roadMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 });
+        const road = new THREE.Mesh(roadGeo, roadMat);
+        road.rotation.x = -Math.PI / 2;
+        road.position.z = -150;
+        road.receiveShadow = true;
+        scene.add(road);
+
+        LANES.forEach(x => {
+            [-0.8, 0.8].forEach(offset => {
+                const railGeo = new THREE.BoxGeometry(0.12, 0.1, 400);
+                const railMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9 });
+                const rail = new THREE.Mesh(railGeo, railMat);
+                rail.position.set(x + offset, 0.05, -150);
+                scene.add(rail);
+            });
+        });
+
+        // --- KARAKTER ---
+        const playerGroup = new THREE.Group();
+
+        const bodyGeo = new THREE.BoxGeometry(0.8, 1.2, 0.5);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2563eb });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 1.4;
+        body.castShadow = true;
+        playerGroup.add(body);
+
+        const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.y = 2.25;
+        head.castShadow = true;
+        playerGroup.add(head);
+
+        const hatGeo = new THREE.BoxGeometry(0.55, 0.15, 0.7);
+        const hatMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+        const hat = new THREE.Mesh(hatGeo, hatMat);
+        hat.position.set(0, 2.55, -0.05);
+        playerGroup.add(hat);
+
+        function createLimb(color, width, height, depth) {
+            const joint = new THREE.Group();
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(width, height, depth),
+                new THREE.MeshStandardMaterial({ color })
+            );
+            mesh.position.y = -height / 2;
+            mesh.castShadow = true;
+            joint.add(mesh);
+            return { joint, mesh };
+        }
+
+        const leftArmData = createLimb(0x2563eb, 0.25, 0.7, 0.25);
+        leftArmData.joint.position.set(-0.55, 1.9, 0);
+        const leftHand = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0xffdbac }));
+        leftHand.position.set(0, -0.75, 0);
+        leftArmData.joint.add(leftHand);
+        playerGroup.add(leftArmData.joint);
+
+        const rightArmData = createLimb(0x2563eb, 0.25, 0.7, 0.25);
+        rightArmData.joint.position.set(0.55, 1.9, 0);
+        const rightHand = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0xffdbac }));
+        rightHand.position.set(0, -0.75, 0);
+        rightArmData.joint.add(rightHand);
+        playerGroup.add(rightArmData.joint);
+
+        const leftLegData = createLimb(0x1e293b, 0.3, 0.8, 0.3);
+        leftLegData.joint.position.set(-0.25, 0.8, 0);
+        const leftFoot = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.2, 0.5), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        leftFoot.position.set(0, -0.85, 0.1);
+        leftLegData.joint.add(leftFoot);
+        playerGroup.add(leftLegData.joint);
+
+        const rightLegData = createLimb(0x1e293b, 0.3, 0.8, 0.3);
+        rightLegData.joint.position.set(0.25, 0.8, 0);
+        const rightFoot = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.2, 0.5), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        rightFoot.position.set(0, -0.85, 0.1);
+        rightLegData.joint.add(rightFoot);
+        playerGroup.add(rightLegData.joint);
+
+        scene.add(playerGroup);
+
+        camera.position.set(0, 4.5, 8);
+        camera.lookAt(0, 1.5, -5);
+
+        // --- NESNE OLUŞTURUCULAR ---
+        function createBuilding(zPos, side) {
+            const height = 15 + Math.random() * 25;
+            const width = 8 + Math.random() * 4;
+            const depth = 10 + Math.random() * 10;
+            const xPos = side === 'left' ? -13 - width / 2 : 13 + width / 2;
+
+            const brightColors = [0x38bdf8, 0xf43f5e, 0xfacc15, 0x4ade80, 0xa855f7];
+            const bldgGeo = new THREE.BoxGeometry(width, height, depth);
+            const bldgMat = new THREE.MeshStandardMaterial({ 
+                color: brightColors[Math.floor(Math.random() * brightColors.length)],
+                roughness: 0.3
+            });
+            const building = new THREE.Mesh(bldgGeo, bldgMat);
+            building.position.set(xPos, height / 2, zPos);
+            building.castShadow = true;
+            building.receiveShadow = true;
+
+            scene.add(building);
+            buildings.push(building);
+        }
+
+        function createTrain(zPos) {
+            const laneIndex = Math.floor(Math.random() * 3);
+            const xPos = LANES[laneIndex];
+            const isMoving = Math.random() > 0.5;
+
+            const trainGroup = new THREE.Group();
+
+            const trainGeo = new THREE.BoxGeometry(2.6, 2.5, 12);
+            const trainMat = new THREE.MeshStandardMaterial({ 
+                color: isMoving ? 0xff0055 : 0xff9f1c,
+                metalness: 0.2, 
+                roughness: 0.3 
+            });
+            const trainMesh = new THREE.Mesh(trainGeo, trainMat);
+            trainMesh.position.y = 1.25;
+            trainMesh.castShadow = true;
+            trainMesh.receiveShadow = true;
+            trainGroup.add(trainMesh);
+
+            const glassGeo = new THREE.BoxGeometry(2.2, 1, 0.2);
+            const glassMat = new THREE.MeshBasicMaterial({ color: 0x00f5d4 });
+            const glass = new THREE.Mesh(glassGeo, glassMat);
+            glass.position.set(0, 1.8, 6.01);
+            trainGroup.add(glass);
+
+            trainGroup.position.set(xPos, 0, zPos);
+            trainGroup.userData = { 
+                type: 'train', 
+                isMoving: isMoving, 
+                moveSpeed: isMoving ? 0.3 : 0,
+                width: 2.6,
+                height: 2.5,
+                depth: 12,
+                hornBlown: false
+            };
+
+            scene.add(trainGroup);
+            obstacles.push(trainGroup);
+        }
+
+        function createCoin(zPos) {
+            const laneIndex = Math.floor(Math.random() * 3);
+            const xPos = LANES[laneIndex];
+
+            const coinGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.15, 16);
+            const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.1 });
+            const coin = new THREE.Mesh(coinGeo, coinMat);
+            coin.rotation.x = Math.PI / 2;
+            coin.position.set(xPos, 1.2, zPos);
+            coin.castShadow = true;
+
+            scene.add(coin);
+            coins.push(coin);
+        }
+
+        for (let z = 0; z > -300; z -= 15) {
+            createBuilding(z, 'left');
+            createBuilding(z, 'right');
+        }
+        for (let z = -40; z > -300; z -= 40) {
+            createTrain(z);
+            createCoin(z - 15);
+        }
+
+        // --- GİRDİLER ---
+        function moveLeft() {
+            initAudio();
+            if (isGameOver) return;
+            if (currentLane > 0) {
+                currentLane--;
+                targetX = LANES[currentLane];
+            }
+        }
+
+        function moveRight() {
+            initAudio();
+            if (isGameOver) return;
+            if (currentLane < 2) {
+                currentLane++;
+                targetX = LANES[currentLane];
+            }
+        }
+
+        function jump() {
+            initAudio();
+            if (isGameOver) return;
+            if (!isJumping) {
+                isJumping = true;
+                jumpVelocity = 0.38;
+                playSound('jump');
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') moveLeft();
+            else if (e.key === 'ArrowRight' || e.key === 'd') moveRight();
+            else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') jump();
+        });
+
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+        const btnJump = document.getElementById('btn-jump');
+
+        btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); moveLeft(); });
+        btnLeft.addEventListener('click', moveLeft);
+
+        btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); moveRight(); });
+        btnRight.addEventListener('click', moveRight);
+
+        btnJump.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); });
+        btnJump.addEventListener('click', jump);
+
+        // --- OYUN DÖNGÜSÜ ---
+        function animate() {
+            if (isGameOver) return;
+            requestAnimationFrame(animate);
+
+            playerGroup.position.x += (targetX - playerGroup.position.x) * 0.25;
+            gameSpeed += 0.00003;
+
+            railSoundTimer++;
+            if (railSoundTimer % 18 === 0) {
+                playSound('rail');
+            }
+
+            groundY = 0;
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obs = obstacles[i];
+                obs.position.z += gameSpeed + obs.userData.moveSpeed;
+
+                const pX = playerGroup.position.x;
+                const pY = playerGroup.position.y;
+                const pZ = playerGroup.position.z;
+
+                if (obs.userData.isMoving && !obs.userData.hornBlown && obs.position.z > -45 && obs.position.z < -10) {
+                    if (Math.abs(obs.position.x - targetX) < 2) {
+                        playSound('horn');
+                        obs.userData.hornBlown = true;
+                    }
+                }
+
+                const trainMinX = obs.position.x - obs.userData.width / 2;
+                const trainMaxX = obs.position.x + obs.userData.width / 2;
+                const trainMinZ = obs.position.z - obs.userData.depth / 2;
+                const trainMaxZ = obs.position.z + obs.userData.depth / 2;
+                const trainTopY = obs.userData.height;
+
+                const isOverTrainX = pX >= trainMinX - 0.2 && pX <= trainMaxX + 0.2;
+                const isOverTrainZ = pZ >= trainMinZ && pZ <= trainMaxZ;
+
+                if (isOverTrainX && isOverTrainZ) {
+                    if (pY >= trainTopY - 0.3) {
+                        groundY = trainTopY;
+                    } else {
+                        playSound('crash');
+                        endGame();
+                    }
+                }
+
+                if (obs.position.z > 20) {
+                    scene.remove(obs);
+                    obstacles.splice(i, 1);
+                    createTrain(-250);
+                }
+            }
+
+            if (isJumping) {
+                playerGroup.position.y += jumpVelocity;
+                jumpVelocity += gravity;
+
+                if (playerGroup.position.y <= groundY) {
+                    playerGroup.position.y = groundY;
+                    isJumping = false;
+                }
+            } else {
+                if (playerGroup.position.y > groundY) {
+                    isJumping = true;
+                    jumpVelocity = 0;
+                } else {
+                    playerGroup.position.y = groundY;
+                }
+            }
+
+            animTime += gameSpeed * 0.4;
+
+            if (isJumping) {
+                leftArmData.joint.rotation.x = -Math.PI * 0.8;
+                rightArmData.joint.rotation.x = -Math.PI * 0.8;
+                leftLegData.joint.rotation.x = Math.PI * 0.25;
+                rightLegData.joint.rotation.x = -Math.PI * 0.25;
+            } else {
+                const swing = Math.sin(animTime * 10) * 0.75;
+                leftArmData.joint.rotation.x = swing;
+                rightArmData.joint.rotation.x = -swing;
+                leftLegData.joint.rotation.x = -swing;
+                rightLegData.joint.rotation.x = swing;
+
+                body.position.y = 1.4 + Math.abs(Math.sin(animTime * 10)) * 0.08;
+            }
+
+            camera.position.y = 4.5 + playerGroup.position.y * 0.5;
+
+            for (let i = buildings.length - 1; i >= 0; i--) {
+                const bldg = buildings[i];
+                bldg.position.z += gameSpeed;
+
+                if (bldg.position.z > 20) {
+                    scene.remove(bldg);
+                    buildings.splice(i, 1);
+                    const side = bldg.position.x < 0 ? 'left' : 'right';
+                    createBuilding(-280, side);
+                }
+            }
+
+            for (let i = coins.length - 1; i >= 0; i--) {
+                const coin = coins[i];
+                coin.position.z += gameSpeed;
+                coin.rotation.z += 0.05;
+
+                const playerBox = new THREE.Box3().setFromObject(playerGroup);
+                const coinBox = new THREE.Box3().setFromObject(coin);
+
+                if (playerBox.intersectsBox(coinBox)) {
+                    playSound('coin');
+                    scene.remove(coin);
+                    coins.splice(i, 1);
+                    score += 10;
+                    document.getElementById('score').innerText = score;
+
+                    // Yüksek Skor Güncelleme
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('subway_runner_highscore', highScore);
+                        document.getElementById('high-score').innerText = highScore;
+                    }
+
+                    createCoin(-250);
+                } else if (coin.position.z > 20) {
+                    scene.remove(coin);
+                    coins.splice(i, 1);
+                    createCoin(-250);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function endGame() {
+            isGameOver = true;
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-high-score').innerText = highScore;
+            document.getElementById('game-over').style.display = 'block';
+        }
+
+        function resetGame() {
+            isGameOver = false;
+            score = 0;
+            gameSpeed = 0.45;
+            currentLane = 1;
+            targetX = LANES[currentLane];
+            playerGroup.position.set(0, 0, 0);
+            groundY = 0;
+            isJumping = false;
+            animTime = 0;
+            railSoundTimer = 0;
+            document.getElementById('score').innerText = '0';
+            document.getElementById('game-over').style.display = 'none';
+
+            obstacles.forEach(obs => scene.remove(obs));
+            coins.forEach(coin => scene.remove(coin));
+            obstacles.length = 0;
+            coins.length = 0;
+
+            for (let z = -40; z > -300; z -= 40) {
+                createTrain(z);
+                createCoin(z - 15);
+            }
+
+            animate();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
