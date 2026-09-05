@@ -1,4 +1,5 @@
- <!DOCTYPE html>
+ 
+<!DOCTYPE html>
 <html lang="tr">
 <head>
 <link rel="icon" href="favicon0.png" type="image/png">
@@ -450,9 +451,10 @@
         let highScore = localStorage.getItem('subway_runner_highscore') || 0;
         document.getElementById('high-score').innerText = highScore;
 
-        // İksir, Mıknatıs ve Jeton Durumları
-        let potionCount = 0;
-        let tokenCount = 0;
+        // İksir, Mıknatıs ve Jeton Durumları (localStorage Entegrasyonu)
+        let potionCount = parseInt(localStorage.getItem('subway_runner_potions')) || 0;
+        let tokenCount = parseInt(localStorage.getItem('subway_runner_tokens')) || 0;
+
         let isSpeedBoosted = false;
         let speedBoostTimer = 0;
 
@@ -475,6 +477,10 @@
         const magnets = [];
         const tokens = [];
         const buildings = [];
+
+        // UI İlk Yükleme
+        updatePotionUI();
+        updateTokenUI();
 
         // --- YOL & RAYLAR ---
         const roadGeo = new THREE.PlaneGeometry(14, 400);
@@ -744,7 +750,6 @@
         for (let z = -40; z > -300; z -= 40) {
             createTrain(z);
             createCoin(z - 15);
-            // YÜKSELTİLMİŞ ORANLAR: İksir %70, Mıknatıs %60, Jeton %30
             if (Math.random() < 0.70) createPotion(z - 20);
             if (Math.random() < 0.60) createMagnet(z - 30);
             if (Math.random() < 0.30) createToken(z - 35);
@@ -765,11 +770,13 @@
         }
 
         function updatePotionUI() {
+            localStorage.setItem('subway_runner_potions', potionCount);
             document.getElementById('potion-count').innerText = potionCount;
             document.getElementById('potion-badge').innerText = potionCount;
         }
 
         function updateTokenUI() {
+            localStorage.setItem('subway_runner_tokens', tokenCount);
             document.getElementById('token-count').innerText = tokenCount;
         }
 
@@ -926,7 +933,6 @@
                     obstacles.splice(i, 1);
                     createTrain(-250);
 
-                    // SÜREKLİ YENİLEME: İksir & Mıknatıs & Jeton Doğurma
                     if (Math.random() < 0.70) createPotion(-260);
                     if (Math.random() < 0.60) createMagnet(-270);
                     if (Math.random() < 0.30) createToken(-280);
@@ -987,7 +993,6 @@
                 coin.position.z += gameSpeed;
                 coin.rotation.z += 0.05;
 
-                // Mıknatıs Etkisi
                 if (isMagnetActive && coin.position.z > -30 && coin.position.z < 5) {
                     coin.position.x += (playerGroup.position.x - coin.position.x) * 0.15;
                     coin.position.y += (playerGroup.position.y + 1.2 - coin.position.y) * 0.15;
@@ -1024,7 +1029,6 @@
                 pot.position.z += gameSpeed;
                 pot.rotation.y += 0.03;
 
-                // Mıknatıs İksirleri de Çeker
                 if (isMagnetActive && pot.position.z > -30 && pot.position.z < 5) {
                     pot.position.x += (playerGroup.position.x - pot.position.x) * 0.15;
                     pot.position.y += (playerGroup.position.y + 1.0 - pot.position.y) * 0.15;
@@ -1123,7 +1127,6 @@
             isGameOver = false;
             document.getElementById('game-over').style.display = 'none';
 
-            // Etraftaki yakın engelleri temizle
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 if (obstacles[i].position.z > -20 && obstacles[i].position.z < 15) {
                     scene.remove(obstacles[i]);
@@ -1131,11 +1134,10 @@
                 }
             }
 
-            // Karakteri sıfırla ve dokunulmazlık ver
             isJumping = false;
             playerGroup.position.y = 0;
             isInvincible = true;
-            invincibleTimer = 120; // 2 saniye yanıp sönme / dokunulmazlık
+            invincibleTimer = 120;
             playSound('revive');
         }
 
@@ -1153,8 +1155,6 @@
             animTime = 0;
             railSoundTimer = 0;
 
-            potionCount = 0;
-            tokenCount = 0;
             isSpeedBoosted = false;
             speedBoostTimer = 0;
             speedAura.visible = false;
