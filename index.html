@@ -1,10 +1,10 @@
-  <!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <link rel="icon" href="favicon0.png" type="image/png">
+<link rel="icon" href="favicon0.png" type="image/png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tren kaçıcıarı</title>
+    <title>3D Subway Runner - Tam Kontrollü</title>
     <style>
         body {
             margin: 0;
@@ -31,6 +31,18 @@
         #ui .high-score-text {
             color: #ffd700;
             font-size: 20px;
+        }
+        #ui .status-text {
+            font-size: 18px;
+            color: #a855f7;
+        }
+        #ui .token-text {
+            font-size: 18px;
+            color: #eab308;
+        }
+        #ui .magnet-text {
+            font-size: 18px;
+            color: #ef4444;
         }
 
         /* --- ÜST SAĞ KONTROL BUTONLARI --- */
@@ -81,9 +93,9 @@
             color: #2563eb;
         }
         .overlay-screen button {
-            margin-top: 20px;
+            margin-top: 15px;
             padding: 15px 35px;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             cursor: pointer;
             background: linear-gradient(45deg, #2563eb, #3b82f6);
@@ -92,12 +104,19 @@
             border-radius: 10px;
             box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
             transition: 0.2s;
+            display: block;
+            width: 100%;
         }
         .overlay-screen button:hover {
-            transform: scale(1.05);
+            transform: scale(1.03);
         }
 
-        /* --- DOKUNMATİK YÖN TUŞLARI --- */
+        .btn-revive {
+            background: linear-gradient(45deg, #eab308, #ca8a04) !important;
+            box-shadow: 0 4px 15px rgba(234, 179, 8, 0.4) !important;
+        }
+
+        /* --- DOKUNMATİK YÖN TUŞLARI VE HIZ KONTROLÜ --- */
         .controls-container {
             position: absolute;
             bottom: 30px;
@@ -111,6 +130,11 @@
         .btn-group-left {
             display: flex;
             gap: 15px;
+        }
+        .btn-group-right {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
         }
         .touch-btn {
             width: 75px;
@@ -128,6 +152,7 @@
             touch-action: manipulation;
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            position: relative;
         }
         .touch-btn:active {
             background: rgba(255, 255, 255, 0.8);
@@ -141,6 +166,30 @@
             border-color: rgba(255, 255, 255, 0.9);
             color: white;
         }
+        .btn-speed {
+            width: 75px;
+            height: 75px;
+            border-radius: 50%;
+            background: rgba(168, 85, 247, 0.6);
+            border-color: rgba(255, 255, 255, 0.9);
+            color: white;
+            font-size: 28px;
+        }
+        .badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ef4444;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 14px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid #fff;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -148,6 +197,9 @@
     <div id="ui">
         <div>Skor: <span id="score">0</span></div>
         <div class="high-score-text">🏆 Yüksek Skor: <span id="high-score">0</span></div>
+        <div class="status-text">🧪 İksir: <span id="potion-count">0</span></div>
+        <div class="token-text">🪙 Jeton: <span id="token-count">0</span></div>
+        <div class="magnet-text" id="magnet-ui" style="display: none;">🧲 Mıknatıs Aktif!</div>
     </div>
 
     <!-- SAĞ ÜST KONTROL BUTONLARI -->
@@ -158,7 +210,7 @@
 
     <!-- BAŞLANGIÇ EKRANI -->
     <div id="start-screen" class="overlay-screen">
-        <h1>Tren kaçıcıları</h1>
+        <h1>3D SUBWAY RUNNER</h1>
         <p style="font-size: 18px; color: #64748b;">Koşmaya başlamak için hazır mısın?</p>
         <button onclick="startGame()">OYUNU BAŞLAT</button>
     </div>
@@ -174,6 +226,8 @@
         <h1 style="color: #ff4757;">ÇARPIŞMA!</h1>
         <div style="font-size: 20px; margin-top: 10px;">Skor: <span id="final-score">0</span></div>
         <div style="font-size: 20px; margin-top: 5px; color: #eab308;">🏆 En Yüksek Skor: <span id="final-high-score">0</span></div>
+        
+        <button id="btn-revive" class="btn-revive" onclick="reviveGame()" style="display: none;">🪙 JETON KULLAN (CANLAN)</button>
         <button onclick="resetGame()" style="background: linear-gradient(45deg, #ff4757, #ff6b81);">YENİDEN BAŞLA</button>
     </div>
 
@@ -183,7 +237,10 @@
             <div class="touch-btn" id="btn-left">◀</div>
             <div class="touch-btn" id="btn-right">▶</div>
         </div>
-        <div class="touch-btn btn-jump" id="btn-jump">▲</div>
+        <div class="btn-group-right">
+            <div class="touch-btn btn-speed" id="btn-speed">⚡<div class="badge" id="potion-badge">0</div></div>
+            <div class="touch-btn btn-jump" id="btn-jump">▲</div>
+        </div>
     </div>
 
     <script>
@@ -271,6 +328,30 @@
                 gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
                 osc.start(now);
                 osc.stop(now + 0.2);
+            } else if (type === 'powerup') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.25);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'boost') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.4);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
             } else if (type === 'crash') {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
@@ -317,6 +398,18 @@
                 gain.connect(audioCtx.destination);
                 osc.start(now);
                 osc.stop(now + 0.04);
+            } else if (type === 'revive') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
             }
         }
 
@@ -351,10 +444,23 @@
         const gravity = -0.016;
 
         let groundY = 0;
+        let baseGameSpeed = 0.45;
         let gameSpeed = 0.45;
         let score = 0;
         let highScore = localStorage.getItem('subway_runner_highscore') || 0;
         document.getElementById('high-score').innerText = highScore;
+
+        // İksir, Mıknatıs ve Jeton Durumları
+        let potionCount = 0;
+        let tokenCount = 0;
+        let isSpeedBoosted = false;
+        let speedBoostTimer = 0;
+
+        let isMagnetActive = false;
+        let magnetTimer = 0;
+
+        let isInvincible = false;
+        let invincibleTimer = 0;
 
         let gameStarted = false;
         let isPaused = false;
@@ -365,6 +471,9 @@
 
         const obstacles = [];
         const coins = [];
+        const potions = [];
+        const magnets = [];
+        const tokens = [];
         const buildings = [];
 
         // --- YOL & RAYLAR ---
@@ -408,6 +517,14 @@
         const hat = new THREE.Mesh(hatGeo, hatMat);
         hat.position.set(0, 2.55, -0.05);
         playerGroup.add(hat);
+
+        // Hız Efekti Aura Mesh
+        const auraGeo = new THREE.SphereGeometry(1.6, 16, 16);
+        const auraMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35, wireframe: true });
+        const speedAura = new THREE.Mesh(auraGeo, auraMat);
+        speedAura.position.y = 1.4;
+        speedAura.visible = false;
+        playerGroup.add(speedAura);
 
         function createLimb(color, width, height, depth) {
             const joint = new THREE.Group();
@@ -516,12 +633,13 @@
             obstacles.push(trainGroup);
         }
 
+        // ALTIN (Parlak Sarı)
         function createCoin(zPos) {
             const laneIndex = Math.floor(Math.random() * 3);
             const xPos = LANES[laneIndex];
 
             const coinGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.15, 16);
-            const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.1 });
+            const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd000, metalness: 0.8, roughness: 0.2, emissive: 0x332a00 });
             const coin = new THREE.Mesh(coinGeo, coinMat);
             coin.rotation.x = Math.PI / 2;
             coin.position.set(xPos, 1.2, zPos);
@@ -531,6 +649,94 @@
             coins.push(coin);
         }
 
+        // HIZLI KOŞMA İKSİRİ (Mor Şişe)
+        function createPotion(zPos) {
+            const laneIndex = Math.floor(Math.random() * 3);
+            const xPos = LANES[laneIndex];
+
+            const potionGroup = new THREE.Group();
+
+            const bottleGeo = new THREE.CylinderGeometry(0.3, 0.35, 0.7, 12);
+            const bottleMat = new THREE.MeshStandardMaterial({ color: 0xa855f7, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.9 });
+            const bottle = new THREE.Mesh(bottleGeo, bottleMat);
+            bottle.position.y = 0.35;
+            potionGroup.add(bottle);
+
+            const neckGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.3, 10);
+            const neckMat = new THREE.MeshStandardMaterial({ color: 0xd8b4fe });
+            const neck = new THREE.Mesh(neckGeo, neckMat);
+            neck.position.y = 0.75;
+            potionGroup.add(neck);
+
+            const corkGeo = new THREE.CylinderGeometry(0.14, 0.1, 0.15, 10);
+            const corkMat = new THREE.MeshStandardMaterial({ color: 0x854d0e });
+            const cork = new THREE.Mesh(corkGeo, corkMat);
+            cork.position.y = 0.92;
+            potionGroup.add(cork);
+
+            potionGroup.position.set(xPos, 1.0, zPos);
+            scene.add(potionGroup);
+            potions.push(potionGroup);
+        }
+
+        // MIKNATIS (U-Şeklinde)
+        function createMagnet(zPos) {
+            const laneIndex = Math.floor(Math.random() * 3);
+            const xPos = LANES[laneIndex];
+
+            const magnetGroup = new THREE.Group();
+            const magMatRed = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.5 });
+            const magMatSilver = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9 });
+
+            const baseGeo = new THREE.BoxGeometry(0.8, 0.25, 0.25);
+            const baseMesh = new THREE.Mesh(baseGeo, magMatRed);
+            baseMesh.position.y = 0.8;
+            magnetGroup.add(baseMesh);
+
+            const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.6, 0.25), magMatRed);
+            leftArm.position.set(-0.275, 0.4, 0);
+            magnetGroup.add(leftArm);
+
+            const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.6, 0.25), magMatRed);
+            rightArm.position.set(0.275, 0.4, 0);
+            magnetGroup.add(rightArm);
+
+            const leftTip = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 0.25), magMatSilver);
+            leftTip.position.set(-0.275, 0.05, 0);
+            magnetGroup.add(leftTip);
+
+            const rightTip = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 0.25), magMatSilver);
+            rightTip.position.set(0.275, 0.05, 0);
+            magnetGroup.add(rightTip);
+
+            magnetGroup.position.set(xPos, 1.0, zPos);
+            scene.add(magnetGroup);
+            magnets.push(magnetGroup);
+        }
+
+        // YENİDEN CANLANMA JETONU (Yıldızlı Altın Jeton)
+        function createToken(zPos) {
+            const laneIndex = Math.floor(Math.random() * 3);
+            const xPos = LANES[laneIndex];
+
+            const tokenGroup = new THREE.Group();
+
+            const coinGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.18, 16);
+            const coinMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.9, roughness: 0.1 });
+            const coinMesh = new THREE.Mesh(coinGeo, coinMat);
+            coinMesh.rotation.x = Math.PI / 2;
+            tokenGroup.add(coinMesh);
+
+            const starGeo = new THREE.BoxGeometry(0.3, 0.3, 0.22);
+            const starMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff });
+            const starMesh = new THREE.Mesh(starGeo, starMat);
+            tokenGroup.add(starMesh);
+
+            tokenGroup.position.set(xPos, 1.2, zPos);
+            scene.add(tokenGroup);
+            tokens.push(tokenGroup);
+        }
+
         for (let z = 0; z > -300; z -= 15) {
             createBuilding(z, 'left');
             createBuilding(z, 'right');
@@ -538,6 +744,10 @@
         for (let z = -40; z > -300; z -= 40) {
             createTrain(z);
             createCoin(z - 15);
+            // YÜKSELTİLMİŞ ORANLAR: İksir %70, Mıknatıs %60, Jeton %30
+            if (Math.random() < 0.70) createPotion(z - 20);
+            if (Math.random() < 0.60) createMagnet(z - 30);
+            if (Math.random() < 0.30) createToken(z - 35);
         }
 
         // --- BUTON VE DURUM KONTROLLERİ ---
@@ -552,6 +762,28 @@
             isPaused = !isPaused;
             document.getElementById('pause-screen').style.display = isPaused ? 'block' : 'none';
             document.getElementById('btn-pause').innerText = isPaused ? '▶' : '⏸';
+        }
+
+        function updatePotionUI() {
+            document.getElementById('potion-count').innerText = potionCount;
+            document.getElementById('potion-badge').innerText = potionCount;
+        }
+
+        function updateTokenUI() {
+            document.getElementById('token-count').innerText = tokenCount;
+        }
+
+        function activateSpeedBoost() {
+            initAudio();
+            if (!gameStarted || isPaused || isGameOver) return;
+            if (potionCount > 0 && !isSpeedBoosted) {
+                potionCount--;
+                updatePotionUI();
+                isSpeedBoosted = true;
+                speedBoostTimer = 300; // ~5 Saniye
+                speedAura.visible = true;
+                playSound('boost');
+            }
         }
 
         // --- GİRDİLER ---
@@ -584,15 +816,17 @@
         }
 
         window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a') moveLeft();
-            else if (e.key === 'ArrowRight' || e.key === 'd') moveRight();
-            else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') jump();
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') moveLeft();
+            else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveRight();
+            else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') jump();
+            else if (e.code === 'ShiftRight') activateSpeedBoost();
             else if (e.key === 'p' || e.key === 'P') togglePause();
         });
 
         const btnLeft = document.getElementById('btn-left');
         const btnRight = document.getElementById('btn-right');
         const btnJump = document.getElementById('btn-jump');
+        const btnSpeed = document.getElementById('btn-speed');
 
         btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); moveLeft(); });
         btnLeft.addEventListener('click', moveLeft);
@@ -603,18 +837,50 @@
         btnJump.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); });
         btnJump.addEventListener('click', jump);
 
+        btnSpeed.addEventListener('touchstart', (e) => { e.preventDefault(); activateSpeedBoost(); });
+        btnSpeed.addEventListener('click', activateSpeedBoost);
+
         // --- OYUN DÖNGÜSÜ ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // Oyun başlamadıysa veya duraklatıldıysa çizimi dondur
             if (!gameStarted || isPaused || isGameOver) {
                 renderer.render(scene, camera);
                 return;
             }
 
+            // Hız bonusunu hesapla
+            baseGameSpeed += 0.00003;
+            gameSpeed = isSpeedBoosted ? baseGameSpeed * 2.0 : baseGameSpeed;
+
+            if (isSpeedBoosted) {
+                speedBoostTimer--;
+                speedAura.rotation.y += 0.1;
+                if (speedBoostTimer <= 0) {
+                    isSpeedBoosted = false;
+                    speedAura.visible = false;
+                }
+            }
+
+            if (isMagnetActive) {
+                magnetTimer--;
+                if (magnetTimer <= 0) {
+                    isMagnetActive = false;
+                    document.getElementById('magnet-ui').style.display = 'none';
+                }
+            }
+
+            // Dokunulmazlık Süresi Yönetimi
+            if (isInvincible) {
+                invincibleTimer--;
+                playerGroup.visible = Math.floor(invincibleTimer / 10) % 2 === 0;
+                if (invincibleTimer <= 0) {
+                    isInvincible = false;
+                    playerGroup.visible = true;
+                }
+            }
+
             playerGroup.position.x += (targetX - playerGroup.position.x) * 0.25;
-            gameSpeed += 0.00003;
 
             railSoundTimer++;
             if (railSoundTimer % 18 === 0) {
@@ -649,7 +915,7 @@
                 if (isOverTrainX && isOverTrainZ) {
                     if (pY >= trainTopY - 0.3) {
                         groundY = trainTopY;
-                    } else {
+                    } else if (!isInvincible) {
                         playSound('crash');
                         endGame();
                     }
@@ -659,6 +925,11 @@
                     scene.remove(obs);
                     obstacles.splice(i, 1);
                     createTrain(-250);
+
+                    // SÜREKLİ YENİLEME: İksir & Mıknatıs & Jeton Doğurma
+                    if (Math.random() < 0.70) createPotion(-260);
+                    if (Math.random() < 0.60) createMagnet(-270);
+                    if (Math.random() < 0.30) createToken(-280);
                 }
             }
 
@@ -710,10 +981,18 @@
                 }
             }
 
+            // --- ALTINLAR VE MIKNATIS ÇEKİMİ ---
             for (let i = coins.length - 1; i >= 0; i--) {
                 const coin = coins[i];
                 coin.position.z += gameSpeed;
                 coin.rotation.z += 0.05;
+
+                // Mıknatıs Etkisi
+                if (isMagnetActive && coin.position.z > -30 && coin.position.z < 5) {
+                    coin.position.x += (playerGroup.position.x - coin.position.x) * 0.15;
+                    coin.position.y += (playerGroup.position.y + 1.2 - coin.position.y) * 0.15;
+                    coin.position.z += (playerGroup.position.z - coin.position.z) * 0.15;
+                }
 
                 const playerBox = new THREE.Box3().setFromObject(playerGroup);
                 const coinBox = new THREE.Box3().setFromObject(coin);
@@ -739,6 +1018,83 @@
                 }
             }
 
+            // --- İKSİRLER VE MIKNATIS ÇEKİMİ ---
+            for (let i = potions.length - 1; i >= 0; i--) {
+                const pot = potions[i];
+                pot.position.z += gameSpeed;
+                pot.rotation.y += 0.03;
+
+                // Mıknatıs İksirleri de Çeker
+                if (isMagnetActive && pot.position.z > -30 && pot.position.z < 5) {
+                    pot.position.x += (playerGroup.position.x - pot.position.x) * 0.15;
+                    pot.position.y += (playerGroup.position.y + 1.0 - pot.position.y) * 0.15;
+                    pot.position.z += (playerGroup.position.z - pot.position.z) * 0.15;
+                }
+
+                const playerBox = new THREE.Box3().setFromObject(playerGroup);
+                const potBox = new THREE.Box3().setFromObject(pot);
+
+                if (playerBox.intersectsBox(potBox)) {
+                    playSound('powerup');
+                    scene.remove(pot);
+                    potions.splice(i, 1);
+                    potionCount++;
+                    updatePotionUI();
+                } else if (pot.position.z > 20) {
+                    scene.remove(pot);
+                    potions.splice(i, 1);
+                }
+            }
+
+            // --- MIKNATIS TOPLAMA ---
+            for (let i = magnets.length - 1; i >= 0; i--) {
+                const mag = magnets[i];
+                mag.position.z += gameSpeed;
+                mag.rotation.y += 0.02;
+
+                const playerBox = new THREE.Box3().setFromObject(playerGroup);
+                const magBox = new THREE.Box3().setFromObject(mag);
+
+                if (playerBox.intersectsBox(magBox)) {
+                    playSound('powerup');
+                    scene.remove(mag);
+                    magnets.splice(i, 1);
+                    isMagnetActive = true;
+                    magnetTimer = 480; // ~8 Saniye
+                    document.getElementById('magnet-ui').style.display = 'block';
+                } else if (mag.position.z > 20) {
+                    scene.remove(mag);
+                    magnets.splice(i, 1);
+                }
+            }
+
+            // --- JETON TOPLAMA ---
+            for (let i = tokens.length - 1; i >= 0; i--) {
+                const tok = tokens[i];
+                tok.position.z += gameSpeed;
+                tok.rotation.y += 0.04;
+
+                if (isMagnetActive && tok.position.z > -30 && tok.position.z < 5) {
+                    tok.position.x += (playerGroup.position.x - tok.position.x) * 0.15;
+                    tok.position.y += (playerGroup.position.y + 1.0 - tok.position.y) * 0.15;
+                    tok.position.z += (playerGroup.position.z - tok.position.z) * 0.15;
+                }
+
+                const playerBox = new THREE.Box3().setFromObject(playerGroup);
+                const tokBox = new THREE.Box3().setFromObject(tok);
+
+                if (playerBox.intersectsBox(tokBox)) {
+                    playSound('powerup');
+                    scene.remove(tok);
+                    tokens.splice(i, 1);
+                    tokenCount++;
+                    updateTokenUI();
+                } else if (tok.position.z > 20) {
+                    scene.remove(tok);
+                    tokens.splice(i, 1);
+                }
+            }
+
             renderer.render(scene, camera);
         }
 
@@ -746,13 +1102,48 @@
             isGameOver = true;
             document.getElementById('final-score').innerText = score;
             document.getElementById('final-high-score').innerText = highScore;
+
+            const btnRevive = document.getElementById('btn-revive');
+            if (tokenCount > 0) {
+                btnRevive.style.display = 'block';
+                btnRevive.innerText = `🪙 JETON KULLAN (Kalan: ${tokenCount})`;
+            } else {
+                btnRevive.style.display = 'none';
+            }
+
             document.getElementById('game-over').style.display = 'block';
+        }
+
+        function reviveGame() {
+            if (tokenCount <= 0) return;
+
+            tokenCount--;
+            updateTokenUI();
+
+            isGameOver = false;
+            document.getElementById('game-over').style.display = 'none';
+
+            // Etraftaki yakın engelleri temizle
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                if (obstacles[i].position.z > -20 && obstacles[i].position.z < 15) {
+                    scene.remove(obstacles[i]);
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            // Karakteri sıfırla ve dokunulmazlık ver
+            isJumping = false;
+            playerGroup.position.y = 0;
+            isInvincible = true;
+            invincibleTimer = 120; // 2 saniye yanıp sönme / dokunulmazlık
+            playSound('revive');
         }
 
         function resetGame() {
             isGameOver = false;
             isPaused = false;
             score = 0;
+            baseGameSpeed = 0.45;
             gameSpeed = 0.45;
             currentLane = 1;
             targetX = LANES[currentLane];
@@ -761,6 +1152,23 @@
             isJumping = false;
             animTime = 0;
             railSoundTimer = 0;
+
+            potionCount = 0;
+            tokenCount = 0;
+            isSpeedBoosted = false;
+            speedBoostTimer = 0;
+            speedAura.visible = false;
+
+            isMagnetActive = false;
+            magnetTimer = 0;
+            isInvincible = false;
+            invincibleTimer = 0;
+            playerGroup.visible = true;
+
+            document.getElementById('magnet-ui').style.display = 'none';
+            updatePotionUI();
+            updateTokenUI();
+
             document.getElementById('score').innerText = '0';
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('pause-screen').style.display = 'none';
@@ -768,12 +1176,22 @@
 
             obstacles.forEach(obs => scene.remove(obs));
             coins.forEach(coin => scene.remove(coin));
+            potions.forEach(pot => scene.remove(pot));
+            magnets.forEach(mag => scene.remove(mag));
+            tokens.forEach(tok => scene.remove(tok));
+
             obstacles.length = 0;
             coins.length = 0;
+            potions.length = 0;
+            magnets.length = 0;
+            tokens.length = 0;
 
             for (let z = -40; z > -300; z -= 40) {
                 createTrain(z);
                 createCoin(z - 15);
+                if (Math.random() < 0.70) createPotion(z - 20);
+                if (Math.random() < 0.60) createMagnet(z - 30);
+                if (Math.random() < 0.30) createToken(z - 35);
             }
         }
 
